@@ -1,59 +1,91 @@
 #!/usr/bin/env ruby
 
+#        Name: grouper.rb
+#      Author: Emilio Nyaray (emilio@nyaray.com)
+#     License: See file LICENSE
+#
+# Description: A simple script that organises files in directories by their
+#              creation date.
+
 # needed for moving files
 require 'fileutils'
 
-# init
-arg0 = (ARGV[0] == "")? "." : ARGV[0]
-wd   = Dir.getwd
 
-# go to arg0 from wd unless arg0 is an absolute path
-workingDirPath = (arg0[0].chr != "/")? File.expand_path(arg0, wd) : arg0
+##########
+#  Init  #
+##########
 
-# store the original stdout, just in case...
+# files and patterns to ignore
+ignoreFiles = [".", "..", ".DS_Store", "grouper.rb", "grouper.log"]
+ignorePatterns = [/.+\.swp/]
+
+# get the given argument, if none is given, use the girectory where ruby was
+# invoked
+target = (ARGV.length == 1)? ARGV[0] : "."
+
+# use target as the working path if it is an absolute path, otherwise expand it
+# by appending it to the working directory. it will be minimised by FileUtils
+workingDirPath = (target[0].chr == "/")?
+  target : File.expand_path(target, Dir.getwd)
+
+
+###################
+#  Set up loging  #
+###################
+
+# name for the log file, touch it..
+logPath = File.join(workingDirPath, "grouper.log")
+FileUtils.touch(logPath)
+
+# redirect stdout and store the original, just in case...
+puts "Outputing log to #{logPath}"
 orig_stdout = $stdout
-
-# name for the log file
-logPath = File.join(wd,
-  "grouper.log")
-#  Time.now().strftime("grouper.%Y-%m-%d_%H-%M-%S.log"))
+$stdout = File.new(logPath, 'w')
 
 # open log file
-puts "Outputing log to #{logPath}"
-FileUtils.touch(logPath)
-$stdout = File.new(logPath, 'w')
 puts "Working in directory '#{workingDirPath}'\n\n"
 
 
+##################
+#  Filter files  #
+##################
 
+# reject files, as stated by ignoreFiles and ignorePatterns
+files = Dir.entries(workingDirPath).reject! {|entry|
+  # is it not a file?
+  # are we supposed to ignore it?
+  # does it match any of the forbidden patterns?
 
+  notFile      = !File.file?(File.join(workingDirPath, entry))
+  ignoredFile  = ignoreFiles.any?    {|file| entry == file}
+  patternMatch = ignorePatterns.any? {|pattern| entry =~ pattern}
 
-# filter files, except for '.' and '..'
-files = Dir.entries(workingDirPath).select {|entry|
-  File.file? File.join(workingDirPath, entry) and
-    !(entry =='.' || entry == '..' || (entry =~ /\.DS_Store|.+\.swp/) != nil )}
+  notFile or ignoredFile or patternMatch
+}
 
 # expand the paths of the files
 files.map! {|file| File.join(workingDirPath, file)}
 puts files
 puts "\n\n"
 
+########################################
+#  Group files by their creation date  #
+########################################
 
-
-
-
-# initialise a hash with the empty list as its default value
+# initialise an empty hash
 fileGroups = Hash.new()
 
 # make each creation date a key in the hash and add all files created on that
 # date to the corresponding list in the hash
 files.each {|file|
-  puts "grouping file '#{file}'"
-  cTimeStr = (File.new file).ctime.strftime("%Y-%m-%d")
-  if fileGroups[cTimeStr] == nil
-    fileGroups[cTimeStr] = [file]
+  f = File.new file
+  minTime = [f.ctime, f.atime, f.mtime].min
+  minTimeStr = minTime.strftime("%Y-%m-%d")
+  puts "grouping file '#{file}' with date #{minTimeStr}"
+  if fileGroups[minTimeStr] == nil
+    fileGroups[minTimeStr] = [file]
   else
-    fileGroups[cTimeStr].push(file)
+    fileGroups[minTimeStr].push(file)
   end
 }
 
@@ -62,18 +94,18 @@ puts "Creating group folders and moving files...\n\n"
 # create a directory (unless it already exists) for each date and move the files
 # created on that date to the new directory
 fileGroups.each_pair {|date, group|
-  puts date + ":\n\n"
+  puts date + ":\n"
   dirPath = File.join(workingDirPath, date)
   # create a directory for the date (if needed)
   if !(File.exists?(dirPath))
     puts "Directory '#{dirPath}' does not exist, creating ..."
-    FileUtils.mkdir(dirPath)
+    FileUtils.mkdir dirPath#, :noop => true
     puts "Done!"
   end
 
   # move the files in the group to the directory
   group.each {|file|
     puts "mv #{file} #{dirPath}"
-    FileUtils.mv file, dirPath, :verbose => true
+    FileUtils.mv file, dirPath, :verbose => true#, :noop => true
   }
 }
