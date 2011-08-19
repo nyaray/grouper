@@ -10,7 +10,6 @@
 # needed for moving files
 require 'fileutils'
 
-
 ##########
 #  Init  #
 ##########
