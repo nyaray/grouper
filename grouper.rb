@@ -2,7 +2,7 @@
 
 #        Name: grouper.rb
 #      Author: Emilio Nyaray (emilio@nyaray.com)
-#     License: See file LICENSE
+#     License: See LICENSE file
 #
 # Description: A simple script that organises files in directories by their
 #              creation date.
